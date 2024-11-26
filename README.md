@@ -28,15 +28,6 @@ chmod +x meta-helper
 
 ![help](images/meta-helper-help.png)
 
-**Example Workflow**
-1. search recipe/patch/systemd-service:
-```bash
-🌕 finding the file
-```
-2. Choose an action:
-- **View:** Opens the recipe in a pager like less.
-- **Edit:** Opens the recipe in your configured editor (nvim by default).
-3. Perform your edits or view the file, and Meta-Helper will resume running seamlessly.
 
 ## 🔧 Configuration
 ### Set the Default Editor
