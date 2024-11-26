@@ -26,7 +26,7 @@ chmod +x meta-helper
 
 ## 💻 Usage
 
-![help](images/meta-helper-help.pngi)
+![help](images/meta-helper-help.png)
 
 **Example Workflow**
 1. search recipe/patch/systemd-service:

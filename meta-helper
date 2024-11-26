@@ -48,7 +48,7 @@ Usage: %s <command> [ <options> ]
 {YELLOW}SUBCOMMANDS:{RESET}
     {GREEN}status{RESET}          commits status of layers with upstream
     {GREEN}update{RESET}          make layers up-to-date with upstream
-    {GREEN}find{RESET}            find and edit the recipe file ( .inc|.bb|.bbappend|.patch|.service )
+    {GREEN}find{RESET}            find and edit the file ( .inc|.bb|.bbappend|.patch|.service )
 \n''' % os.path.basename(sys.argv[0]))
     if exit_code is not None:
         sys.exit(exit_code)
@@ -116,13 +116,13 @@ def check_submodule_status(submodule_path, remote_url, combo_branch):
     
     # Compare commits to check if the submodule is up-to-date
     if local_commit == remote_commit:
-        status = f"{GREEN}up to date{RESET} with 'origin/{branch_name}'"
+        status = f"{GREEN}up to date{RESET} with upstream {branch_name} branch"
     else:
         # Count the number of commits behind the remote
         commits_behind = subprocess.check_output(
             ["git", "rev-list", "--count", f"{local_commit}..{remote_commit}"]
         ).strip().decode("utf-8")
-        status = f"{YELLOW}{commits_behind} commits behind{RESET} 'origin/{branch_name}'"
+        status = f"{YELLOW}{commits_behind} commits behind{RESET} upstream {branch_name} branch"
     
     # Output formatting
     print(f"{BLUE}{os.path.basename(submodule_path)}:{RESET}")
@@ -162,9 +162,7 @@ def search_files(directory, pattern):
 
 # Main function
 def main(args):
-
     global spinner_thread
-
     sources_directory = os.path.join(os.getcwd(), "sources")
     root_dir = os.getcwd()
     
@@ -180,8 +178,7 @@ def main(args):
         print(f'finding the file')
         recipe_name = cmd_args[0]
 
-        # Find matching recipes
-        #pattern = f"*{recipe_name}*.*\.(inc|bb|bbappend)$"
+        # Find matching files
         pattern = f".*{recipe_name}.*\.(inc|bb|bbappend|patch|service)$"
         matches = search_files(sources_directory, pattern)
 
