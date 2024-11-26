@@ -1,0 +1,267 @@
+#!/usr/bin/python3
+
+import subprocess
+import os
+import re
+import sys
+import time
+import threading
+
+# ANSI color codes for styling
+BLUE = "\033[94m"
+YELLOW = "\033[93m"
+GREEN = "\033[92m"
+RED = "\033[91m"
+RESET = "\033[0m"
+
+# Directory paths
+root_dir = os.path.abspath(".")
+gitmodules_path = os.path.join(root_dir, ".gitmodules")
+
+def spinning_wheel(stop_event):
+    spinner = ['🌕', '🌖', '🌗', '🌘', '🌑', '🌒', '🌓', '🌔']
+    idx = 0
+    while not stop_event.is_set():
+        sys.stdout.write(f"\r{spinner[idx]} ")
+        sys.stdout.flush()
+        idx = (idx + 1) % len(spinner)
+        time.sleep(0.2)
+    #sys.stdout.write("\r🌕 Done!             \n")
+
+def usage(exit_code=None, cmd=None):
+    printer = None
+    if exit_code is not None and exit_code != 0:
+        printer = sys.stderr.write
+    else:
+        printer = sys.stdout.write
+    printer(f'''
+Meta helper
+Usage: %s <command> [ <options> ]
+
+{YELLOW}USAGE:{RESET}
+    ./meta-helper [OPTIONS] <SUBCOMMANDS>
+
+{YELLOW}OPTIONS:{RESET}
+    {GREEN}-h, --help{RESET}      Print help information
+    {GREEN}-v, --version{RESET}   Print version details
+
+{YELLOW}SUBCOMMANDS:{RESET}
+    {GREEN}status{RESET}          commits status of layers with upstream
+    {GREEN}update{RESET}          make layers up-to-date with upstream
+    {GREEN}find{RESET}            find and edit the recipe file ( .inc|.bb|.bbappend|.patch|.service )
+\n''' % os.path.basename(sys.argv[0]))
+    if exit_code is not None:
+        sys.exit(exit_code)
+
+
+# Function to parse .gitmodules and retrieve remote URLs and paths
+def parse_gitmodules():
+    submodules = {}
+    if os.path.exists(gitmodules_path):
+        with open(gitmodules_path, "r") as file:
+            content = file.read()
+            matches = re.findall(r'\[submodule "(.*?)"\]\s*path = (.*?)\s*url = (.*)', content)
+            for name, path, url in matches:
+                submodules[path] = url
+    else:
+        print(".gitmodules file not found.")
+    return submodules
+
+def get_current_branch():
+    try:
+        # Get the current branch of the main repository
+        result = subprocess.run(["git", "rev-parse", "--abbrev-ref", "HEAD"], 
+                                 stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        if result.returncode != 0:
+            raise Exception(f"Error getting current branch: {result.stderr.strip()}")
+
+        current_branch = result.stdout.strip()
+        print(f"   Checking commits w.r.t {GREEN}{current_branch}{RESET} branch\n")
+        return current_branch
+
+    except Exception as e:
+        print(f"Error: {e}")
+
+# Function to check the status of each submodule in detached HEAD mode
+def check_submodule_status(submodule_path, remote_url, combo_branch):
+    full_path = os.path.join(root_dir, submodule_path)
+    if not os.path.isdir(full_path):
+        print(f"{RED}Warning: {submodule_path} not found.{RESET}")
+        return
+
+    os.chdir(full_path)
+    # Fetch the latest changes from the remote repository
+    subprocess.run(["git", "fetch", remote_url], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+
+    # checkout the submodules with combo repository branch
+    subprocess.run(["git", "checkout", combo_branch], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    
+    # Get the current local branch name (if available)
+    try:
+        branch_name = subprocess.check_output(["git", "rev-parse", "--abbrev-ref", "HEAD"]).strip().decode("utf-8")
+    except subprocess.CalledProcessError:
+        branch_name = "detached HEAD"
+
+    # Get the current local commit hash
+    local_commit = subprocess.check_output(["git", "rev-parse", "HEAD"]).strip().decode("utf-8")
+    
+    # Get the latest commit hash from the remote branch
+    try:
+        remote_commit = subprocess.check_output(
+            ["git", "ls-remote", remote_url, "HEAD"]
+        ).strip().decode("utf-8").split()[0]
+    except subprocess.CalledProcessError:
+        print(f"{RED}Error: Unable to fetch remote commit for {submodule_path}.{RESET}")
+        return
+    
+    # Compare commits to check if the submodule is up-to-date
+    if local_commit == remote_commit:
+        status = f"{GREEN}up to date{RESET} with 'origin/{branch_name}'"
+    else:
+        # Count the number of commits behind the remote
+        commits_behind = subprocess.check_output(
+            ["git", "rev-list", "--count", f"{local_commit}..{remote_commit}"]
+        ).strip().decode("utf-8")
+        status = f"{YELLOW}{commits_behind} commits behind{RESET} 'origin/{branch_name}'"
+    
+    # Output formatting
+    print(f"{BLUE}{os.path.basename(submodule_path)}:{RESET}")
+    print(f"  on branch '{branch_name}'")
+    print(f"  {status}")
+    print("-" * 50)
+
+def find_files(basedir, maxdepth=None, pattern='.*'):
+    depth = 0
+    re_pattern = re.compile(pattern)
+    re_skip_pattern = re.compile('.*~$|^\.#|^#.*#$|.*\.pyc$')
+    results = []
+    match_whole_path = '/' in pattern
+    for root, dirs, files in os.walk(basedir):
+        dirs[:] = [d for d in dirs if not d[0] == '.']
+        depth += 1
+        if maxdepth and depth > maxdepth:
+            return results
+        all_files = None
+        if match_whole_path:
+            all_files = [os.path.join(root, f) for f in dirs + files]
+        else:
+            all_files = dirs + files
+        for file in all_files:
+            if not re_skip_pattern.match(file) and re_pattern.match(file):
+                results.append(os.path.join(root, file))
+    return results
+
+def search_files(directory, pattern):
+    """Search files in a directory using a regular expression pattern."""
+    matches = []
+    for root, dirs, files in os.walk(directory):
+        for file in files:
+            if re.match(pattern, file):
+                matches.append(os.path.join(root, file))
+    return matches
+
+# Main function
+def main(args):
+
+    global spinner_thread
+
+    sources_directory = os.path.join(os.getcwd(), "sources")
+    root_dir = os.getcwd()
+    
+    if not args:
+        usage(1)
+    
+    if '-h' in args or '-help' in args or '--help' in args:
+        usage(0)
+    cmd = args[0]
+    cmd_args = args[1:]
+
+    if cmd in ['-f', 'find']:
+        print(f'finding the file')
+        recipe_name = cmd_args[0]
+
+        # Find matching recipes
+        #pattern = f"*{recipe_name}*.*\.(inc|bb|bbappend)$"
+        pattern = f".*{recipe_name}.*\.(inc|bb|bbappend|patch|service)$"
+        matches = search_files(sources_directory, pattern)
+
+        if not matches:
+            print(f"No recipe files found for '{recipe_name}'.")
+            sys.exit(1)
+
+        # Display the matches
+        for idx, match in enumerate(matches):
+            print(f"[{idx}] {match}")
+
+        # Get user input to select an option
+        choice = input("\n  Option (ENTER to cancel): \n").strip()
+        if choice == '':
+            print("Canceled.")
+            sys.exit(0)
+
+        try:
+            choice = int(choice)
+            selected_file = matches[choice]
+        except (ValueError, IndexError):
+            print("Invalid selection.")
+            sys.exit(1)
+
+        # Ask if user wants to view or edit
+        action = input("\n[v] View\n[e] Edit\n\n   Option (ENTER to cancel): \n").strip().lower()
+        if action == '':
+            print("Canceled.")
+            sys.exit(0)
+        elif action == 'v':
+            subprocess.run(['less', selected_file])
+        elif action == 'e':
+            # Stop spinner before opening editor
+            stop_event.set()
+            spinner_thread.join()
+
+            editor = os.environ.get('EDITOR', 'nvim')
+            subprocess.run([editor, selected_file])
+
+            # Restart spinner after editor closes
+            stop_event.clear()
+            spinner_thread = threading.Thread(target=spinning_wheel, args=(stop_event,), daemon=True)
+            spinner_thread.start()
+        else:
+            print("Invalid option.")
+            sys.exit(1)
+
+    elif cmd == 'status': 
+        submodules = parse_gitmodules()
+        if not submodules:
+            return
+
+        print("Fetch status of Yocto layers...\n")
+        current_branch = get_current_branch()
+        if not current_branch:
+            print("Could not determine the current branch in the combo directory.")
+            sys.exit(1)
+
+
+        for submodule_path, remote_url in submodules.items():
+            #print(f"Layer: {submodule_path}")
+            check_submodule_status(submodule_path, remote_url, current_branch)
+
+        os.chdir(root_dir)  # Return to original dir
+
+    elif cmd == 'update':
+        subprocess.run(["git", "pull", "--recurse"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    else:
+        usage(1)
+
+if __name__ == "__main__":
+    stop_event = threading.Event()  # Event to signal the spinner to stop
+
+    # Start the spinning wheel in a separate thread
+    spinner_thread = threading.Thread(target=spinning_wheel, args=(stop_event,))
+    spinner_thread.start()
+
+    try:
+        main(sys.argv[1:])
+    finally:
+        stop_event.set()  # Signal the spinner thread to stop
+        spinner_thread.join()  # Wait for the spinner thread to exit
+
