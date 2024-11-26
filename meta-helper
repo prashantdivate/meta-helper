@@ -245,7 +245,7 @@ def main(args):
         os.chdir(root_dir)  # Return to original dir
 
     elif cmd == 'update':
-        subprocess.run(["git", "pull", "--recurse"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        subprocess.run(["git", "pull", "--recurse"])
     else:
         usage(1)
 
