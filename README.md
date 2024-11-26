@@ -25,13 +25,11 @@ chmod +x meta-helper
 ```
 
 ## 💻 Usage
-Run the tool to search for a recipe, view, or edit it interactively:
 
-```bash
-./meta-helper find <recipe-name>
-```
+![help](images/meta-helper-help.pngi)
+
 **Example Workflow**
-1. Input a recipe name:
+1. search recipe/patch/systemd-service:
 ```bash
 🌕 finding the file
 ```
