@@ -17,18 +17,18 @@
 
 ## 📦 Installation
 
-Clone the repository and run the script directly:
+Download the script directly:
 ```bash
-git clone https://github.com/your-username/meta-helper.git
-cd meta-helper
-chmod +x meta-helper.py
+curl -o meta-helper https://raw.githubusercontent.com/prashantdivate/meta-helper/master/meta-helper
+chmod +x meta-helper
+./meta-helper
 ```
 
 ## 💻 Usage
 Run the tool to search for a recipe, view, or edit it interactively:
 
 ```bash
-./meta-helper.py <recipe-name>
+./meta-helper find <recipe-name>
 ```
 **Example Workflow**
 1. Input a recipe name:
