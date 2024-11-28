@@ -4,6 +4,36 @@
 
 ---
 
+### The directory layout assumed by meta-helper
+
+The infrastructure adopted by **meta-helper** assumes the following directory layout:
+
+```
+<project>
+    |──.git
+    |──.gitmodules
+    |──<build dir>
+    |──setup-environment
+    |──sources
+    |    |──<meta-layer1>
+    |    |──<meta-layer2>
+    |    |──<meta-layer3>
+    |    └──<meta-layer4>
+    |──poky
+    └──meta-openembedded
+```
+
+`<project>` is the root directory of the project you'll be working on.
+In it you'll initially find a `setup-environment` script, which is
+supposed to be source'd to set up the environment and will create
+`<build dir>`, and a `sources` directory, under which the source code
+of all projects (git repositories as submodules) will be stored.
+
+The directory layout in the `<build dir>` directory follows the
+standard layout as determined by the Yocto Project.
+
+---
+
 ## 🚀 Features
 
 - **Layer status**: Quickly checks the layer is up-to-date with upstream repo or not.
@@ -20,7 +50,11 @@
 Download the script directly:
 ```bash
 curl -o meta-helper https://raw.githubusercontent.com/prashantdivate/meta-helper/master/meta-helper
+```
+```bash
 chmod +x meta-helper
+```
+```bash
 ./meta-helper
 ```
 
