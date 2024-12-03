@@ -204,7 +204,7 @@ def main(args):
             sys.exit(1)
 
         # Ask if user wants to view or edit
-        action = input("\n[v] View\n[e] Edit\n\n   Option (ENTER to cancel): \n").strip().lower()
+        action = input("\n[v] View\n[e] Edit\n[o] Run oelint-adv\n\n   Option (ENTER to cancel): \n").strip().lower()
         if action == '':
             print("Canceled.")
             sys.exit(0)
@@ -219,6 +219,29 @@ def main(args):
             subprocess.run([editor, selected_file])
 
             # Restart spinner after editor closes
+            stop_event.clear()
+            spinner_thread = threading.Thread(target=spinning_wheel, args=(stop_event,), daemon=True)
+            spinner_thread.start()
+        elif action == 'o':
+            # Stop spinner before running oelint
+            stop_event.set()
+            spinner_thread.join()
+
+            print(f"\nRunning oelint on: {selected_file}\n")
+            try:
+                result = subprocess.run(['python3', '-m', 'oelint_adv', '--color', '--quiet', '--fix', '--nobackup', '--suppress', 'oelint.file.underscores', selected_file], capture_output=True, text=True)
+                if result.returncode == 0:
+                    print(f"{GREEN}oelint passed with no issues.{RESET}")
+                else:
+                    print(f"{RED}oelint found issues in the recipe:{RESET}")
+                    print(result.stdout)
+                    print(result.stderr)
+            except FileNotFoundError:
+                print(f"{RED}🌟 Hey there! Just a quick heads-up: we're giving our code a little extra love. To make sure your changes shine bright, remember to have the charming oelint-adv by your side before making any tweaks. It's like having a trusty companion on your coding journey! 🚀✨. Please install it to use this feature.{RESET}")
+            except Exception as e:
+                print(f"{RED}Error running oelint: {e}{RESET}")
+
+            # Restart spinner after linting
             stop_event.clear()
             spinner_thread = threading.Thread(target=spinning_wheel, args=(stop_event,), daemon=True)
             spinner_thread.start()

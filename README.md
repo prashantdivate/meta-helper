@@ -41,7 +41,7 @@ standard layout as determined by the Yocto Project.
 - **Editor Integration**: Edit files directly in your favorite editor (`nvim`, `vim`, or any editor configured in `$EDITOR`).
 - **Spinner Animation**: Enjoy a sleek, animated loading spinner while tasks are running in the background.
 - **Error Handling**: Comprehensive error detection and user-friendly messages for seamless operation.
-- **Customization**: Set environment variables or modify the tool to fit your needs.
+- **oelint-adv parsing**: Added support to run oelint-adv linter and quickly fix some common errors for specified recipe.
 
 ---
 
@@ -87,7 +87,7 @@ Option (ENTER to cancel): 1
 
 [v] View
 [e] Edit
-
+[o] Run oelint-adv
 Option (ENTER to cancel): e
 🌕 working...
 ```
